@@ -1,0 +1,52 @@
+name: Sentinel Circuit Analysis
+
+on:
+  push:
+    paths:
+      - '**.r1cs'
+      - '**.circom'
+  pull_request:
+    paths:
+      - '**.r1cs'
+      - '**.circom'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Sentinel CLI
+        run: npm install -g sentinel-cli
+
+      - name: Run analysis
+        run: sentinel analyze --path ./circuits --format markdown > report.md
+        env:
+          SENTINEL_LICENSE_KEY: ${{ secrets.SENTINEL_LICENSE_KEY }}
+
+      - name: Upload report
+        uses: actions/upload-artifact@v3
+        with:
+          name: sentinel-report
+          path: report.md
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('report.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
